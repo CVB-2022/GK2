@@ -1,0 +1,660 @@
+!Function: cfm12345
+!Editer: mhy
+=======
+!Updated Date: 20190903
+!Email: mahaoye@buaa.edu.cn
+!---------------------------------------
+
+!pres-set
+finish
+/clear
+
+!------------------Input----------------
+/prep7
+!常值参数
+pi=3.14159
+
+!是否卡死？
+Stick=0
+nThickness=1										!厚度方向分成2段
+nlength=10										!每半周期分割的点数
+nBeam=4 											!梁的分段数
+!阻尼片的参数——1
+width=0.021 									!阻尼片的总宽度
+thickness=0.002   						!阻尼片的总厚度
+dWidth=0.003									!宽度方向每一段的长度
+nwidth=width/dWidth  					!宽度上的个数
+A1=0.004 											!阻尼片第一段的幅值
+A2=0.004  										!阻尼片第二段的幅值
+L1=0.024											!阻尼片第一段的宽度
+L2=0.024											!阻尼片第二段的宽度/2
+dL1=L1/nlength								!L1每小段的宽度
+dL2=L2/nlength								!L2每小段的宽度
+dThickness=thickness/nThickness	!厚度方向单元的长度
+
+!阻尼片的位置信息
+OriginalLocation=0.006				!起始坐标
+flatlength=0.057-2*L1					!平稳段的长度
+dflat=0.003										!平稳端每段长度
+nflat=flatlength/dflat				!平稳段分段数
+!基底的数据
+gap=0.000
+LBase=0.3
+
+!-----------压电材料--------------
+!尺寸
+PThick1=0.0005					     !厚度1
+PnW1=0 											 !宽度方向离边的格数1
+PnLength1=6									 !长度方向压电材料所占的格数1
+PThick2=0.0005					 		 !厚度2
+PnW2=0 											 !宽度方向离边的格数2
+PnLength2=6									 !长度方向压电材料所占的格数2
+
+!位置
+PLoc1=8									 		 !压电材料起始位置距离结构边缘的距离1
+PLoc2=8									     !压电材料起始位置距离结构边缘的距离2
+!-----------Input Finished--------------
+
+!----------------------Program Start--------------------------
+
+!---------------------1. Parameter Set------------------------												
+!材料参数 波纹片
+et,1,solid185
+MP,EX,1,210E9
+mp,nuxy,1,0.3
+mp,dens,1,7800
+!材料参数 主结构
+et,2,solid185
+MP,EX,2,70E9
+mp,nuxy,2,0.3
+mp,dens,2,2700
+!材料参数 螺栓
+et,4,solid185
+MP,EX,4,70E9
+mp,nuxy,4,0.3
+mp,dens,4,2700   
+!压电材料参数设置 
+*SET,Dens_pzt,7500 
+*SET,e_unit,1
+*SET,c_unit,1e10
+*SET,ep33,1470
+*SET,ep11,1700
+*SET,e31,-6.55*e_unit
+*SET,e33,23.3*e_unit
+*SET,e15,17.0*e_unit
+*SET,c11,12.6*c_unit
+*SET,c33,11.7*c_unit
+*SET,c44,2.30*c_unit
+*SET,c66,2.325*c_unit
+*SET,c12,7.95*c_unit
+*SET,c13,8.41*c_unit
+!PZT-5H 材料特性 压电片
+et,10,solid5,3
+et,20,solid5,3     
+mp,DENS,3,Dens_pzt       		!密度, T/mm**3
+!!介电常数
+emunit,epzro,8.854e-12
+mp,perx,3,ep11           
+mp,pery,3,ep11
+mp,perz,3,ep33
+!!弹性劲度系数, N/m^2
+tb,ANEL,3                 	
+tbdata,1,c11,c12,c13      	! c11,c12,c13
+tbdata,7,c11,c13         		! c11,c13
+tbdata,12,c33             	! c33 
+tbdata,16,c66             	! c66
+tbdata,19,c44             	! c44
+tbdata,21,c44             	! c44
+!!压电应力矩阵, C/m^2
+tb,PIEZ,3                 	
+tbdata,3,e31             		! e31
+tbdata,6,e31              	! e31
+tbdata,9,e33              	! e33
+tbdata,14,e15             	! e15
+tbdata,16,e15             	! e15
+!————————————————————————end——————————————————————————————
+
+!——————————————————————2. Node Creation———————————————————
+real,1$type,1$mat,1
+*DO,j,1,nwidth+1
+	!前半段
+	sumloc=OriginalLocation
+	*DO,i,1,nlength+1+2
+		CSYS,0
+		N,(j-1)*10000+i,dWidth*(j-1),sumloc+dL1*(i-1-2),A1+A1*sin((i-1-2)*pi/nlength-pi/2)
+		Local,i+10+1000*j,0,dWidth*(j-1),sumloc+dL1*(i-1-2),A1+A1*sin((i-1-2)*pi/nlength-pi/2),0,180*atan(A1*pi/L1*cos((i-1-2)*pi/nlength-pi/2))/pi,0
+		CSYS,10+i+1000*j
+		*DO,iT,1,nThickness
+			N,i+iT*1000+(j-1)*10000,0,0,iT*dThickness
+		*ENDDO
+	*ENDDO
+	ncount=i
+	sumloc=OriginalLocation+L1
+	
+	!平稳段
+	*DO,i,1+ncount,nflat+ncount
+		CSYS,0
+		N,(j-1)*10000+i,dWidth*(j-1),sumloc+dflat*(i-ncount),2*A1
+		Local,i+10+1000*j,0,dWidth*(j-1),sumloc+dflat*(i-ncount),2*A1,0,0,0
+		CSYS,10+i+1000*j
+		*DO,iT,1,nThickness
+			N,i+iT*1000+(j-1)*10000,0,0,iT*dThickness
+		*ENDDO
+	*ENDDO
+	ncount=i !用来保存之前的节点编号
+	sumloc=OriginalLocation+L1+flatlength
+	
+	!后半段
+	*DO,i,ncount+1,ncount+nlength+2
+		CSYS,0
+		N,(j-1)*10000+i,dWidth*(j-1),sumloc+dL2*(i-ncount),2*A1-A2+A2*cos((i-ncount)*pi/nlength)
+		Local,i+10+1000*j,0,dWidth*(j-1),sumloc+dL2*(i-ncount),2*A1-A2+A2*cos((i-ncount)*pi/nlength),0,180*atan(A2*pi/L1*(-sin((i-ncount)*pi/nlength)))/pi,0
+		CSYS,10+i+1000*j
+		*DO,iT,1,nThickness
+			N,i+iT*1000+(j-1)*10000,0,0,iT*dThickness
+		*ENDDO
+	*ENDDO
+*enddo
+ncount=i
+
+!压电单元部分
+*DO,j,PnW1+1,nwidth+1-PnW1
+	*DO,i,PLoc1,PLoc1+PnLength1
+		CSYS,10+i+1000*j
+		N,(j-1)*10000+i+5000,0,0,thickness+PThick1
+	*ENDDO
+*ENDDO
+
+PLoc2Cor=ncount-PnLength2-PLoc2+1
+*DO,j,PnW2+1,nwidth+1-PnW2
+	*DO,i,PLoc2Cor,PLoc2Cor+PnLength2
+		CSYS,10+i+1000*j
+		N,(j-1)*10000+i+5000,0,0,thickness+PThick2
+	*ENDDO
+*ENDDO
+
+!————————————————————————end——————————————————————————————
+
+!————————————————————3. 生成单元——————————————————————————
+*DO,j,1,nwidth
+	*DO,i,1,ncount-1
+		*DO,iT,1,nThickness
+			E,10000*(j-1)+i+1000*(iT-1),10000*(j-1)+i+1+1000*(iT-1),10000*(j-1)+i+1+1000*iT,10000*(j-1)+i+1000*iT,10000*j+i+1000*(iT-1),10000*j+i+1+1000*(iT-1),10000*j+i+1+1000*iT,10000*j+i+1000*iT
+		*ENDDO
+	*ENDDO
+*ENDDO
+
+!压电单元部分
+!压电单元的局部坐标系的生成
+*DO,i,PLoc1,PLoc1+PnLength1-1
+	CSYS,0
+	allsel,all
+	nsel,s,,,i+5000+10000*PnW1
+	*GET,node_num_match,NODE,,NUM,MIN	
+	*get,locx1,node,node_num_match,loc,x
+	*get,locy1,node,node_num_match,loc,y
+	*get,locz1,node,node_num_match,loc,z
+	nsel,s,,,i+1+5000+10000*PnW1
+	*GET,node_num_match,NODE,,NUM,MIN	
+	*get,locx2,node,node_num_match,loc,x
+	*get,locy2,node,node_num_match,loc,y
+	*get,locz2,node,node_num_match,loc,z
+	Local,i+50000,0,locx1,locy1,locz1,0,180*atan((locz2-locz1)/(locy2-locy1))/pi,0
+*ENDDO
+
+*DO,i,PLoc2Cor,PLoc2Cor+PnLength2-1
+	CSYS,0
+	allsel,all
+	nsel,s,,,i+5000+10000*PnW1
+	*GET,node_num_match,NODE,,NUM,MIN	
+	*get,locx1,node,node_num_match,loc,x
+	*get,locy1,node,node_num_match,loc,y
+	*get,locz1,node,node_num_match,loc,z
+	nsel,s,,,i+1+5000+10000*PnW1
+	*GET,node_num_match,NODE,,NUM,MIN	
+	*get,locx2,node,node_num_match,loc,x
+	*get,locy2,node,node_num_match,loc,y
+	*get,locz2,node,node_num_match,loc,z
+	Local,i+50000,0,locx1,locy1,locz1,0,180*atan((locz2-locz1)/(locy2-locy1))/pi,0
+*ENDDO
+!连接生成压电单元
+*DO,j,PnW1+1,nwidth-PnW1
+	*DO,i,PLoc1,PLoc1+PnLength1-1
+		real,1$type,10$mat,3$esys,i+50000
+		E,10000*(j-1)+i+1+nThickness*1000,10000*(j-1)+i+nThickness*1000,10000*(j-1)+i+5000,10000*(j-1)+i+1+5000,10000*j+i+1+nThickness*1000,10000*j+i+nThickness*1000,10000*j+i+5000,10000*j+i+1+5000
+	*ENDDO
+*ENDDO
+*DO,j,PnW2+1,nwidth-PnW2
+	*DO,i,PLoc2Cor,PLoc2Cor+PnLength2-1
+		real,1$type,20$mat,3$esys,i+50000
+		E,10000*(j-1)+i+1+nThickness*1000,10000*(j-1)+i+nThickness*1000,10000*(j-1)+i+5000,10000*(j-1)+i+1+5000,10000*j+i+1+nThickness*1000,10000*j+i+nThickness*1000,10000*j+i+5000,10000*j+i+1+5000
+	*ENDDO
+*ENDDO
+CSYS,0
+ALLSEL,ALL
+CM,DamperNode,Node
+CM,DamperElem,Elem
+!————————————————————————end——————————————————————————————
+/PSYMB,CS,0
+allsel,all
+EPLOT
+!——————————————————————4. 节点筛选分组———————————————————————
+!筛选摩擦片的节点
+ESEL,S,TYPE,,1
+NSLE,s,all
+CM,PatchNode,Node
+!筛选摩擦片下表面单元节点
+allsel,all
+*DO,j,1,nwidth+1
+	*DO,i,1,ncount
+		nsel,u,,,10000*(j-1)+i
+	*ENDDO
+*ENDDO
+CM,MidNode,Node
+ALLSEL,ALL
+CMSEL,U,MidNode,Node
+CM,PatchNodeBelow,NODE
+!筛选摩擦片上表面单元节点
+allsel,all
+*DO,j,1,nwidth+1
+	*DO,i,1,ncount
+		nsel,u,,,10000*(j-1)+i+1000*nThickness
+	*ENDDO
+*ENDDO
+CM,MidNode,Node
+ALLSEL,ALL
+CMSEL,U,MidNode,Node
+CM,PatchNodeUp,NODE
+!筛选摩擦片上其它节点
+CMSEL,S,PatchNode,Node
+CMSEL,U,PatchNodeBelow,Node
+CMSEL,U,PatchNodeUp,Node
+CM,PatchNodeELse,Node
+
+!筛选压电材料1上的节点
+ESEL,S,TYPE,,10
+NSLE,S,ALL
+CM,PiezoNode1,Node
+CMSEL,U,PatchNode,Node
+CM,PiezoNode1Up,Node
+ALLSEL,ALL
+CMSEL,S,PiezoNode1,Node
+CMSEL,U,PiezoNode1Up,Node
+CM,PiezoNode1Below,Node
+Allsel,ALL
+!筛选压电材料2上的节点
+ESEL,S,TYPE,,20
+NSLE,S,ALL
+CM,PiezoNode2,Node
+CMSEL,U,PatchNode,Node
+CM,PiezoNode2Up,Node
+ALLSEL,ALL
+CMSEL,S,PiezoNode2,Node
+CMSEL,U,PiezoNode2Up,Node
+CM,PiezoNode2Below,Node
+Allsel,ALL
+!—————————————————————————end————————————————————————————————————————
+
+!—————————5. host structure creation & contact node selection———————————
+!主结构的几何建模
+real,1$type,2$mat,2
+block,-0.012,0.012+width,0,LBase,gap,gap-0.005
+allsel,all
+LESIZE,ALL,0.003,,,,1,,,1, 
+VSWEEP,ALL
+allsel,all
+cmsel,u,DamperNode,Node
+CMSEL,U,DamperElem,Elem
+cm,HostNode,Node
+cm,HostElem,Elem
+allsel,all
+!上下两个结构的耦合
+!——————————————上下两结构的耦合——————————————————————
+NSEL,S,LOC,Y,OriginalLocation+L1+flatlength/2+0.003,OriginalLocation+L1+flatlength/2-0.003
+NSEL,R,LOC,X,width/2+0.003,width/2-0.003
+cmsel,R,PatchNodeBelow,Node
+CM,coupleface2,node
+allsel,all
+
+NSEL,S,LOC,Y,OriginalLocation+L1+flatlength/2+0.003,OriginalLocation+L1+flatlength/2-0.003
+NSEL,R,LOC,X,width/2+0.003,width/2-0.003
+nsel,R,loc,z,gap
+CM,coupleface1,node
+allsel,all
+             
+!接触对之间的对应关系
+real,1$type,4$mat,4
+*dim,CoupleNodeNum,array,nBeam+1,4 ! 存放节点编号  
+NSEL,S,NODE,,10000*(nwidth-1)/2+1+nlength+(nflat-1)/2+2
+*GET,CoupleNodeNum(1,1),NODE,,NUM,MIN
+NSEL,S,NODE,,10000*(nwidth+1)/2+1+nlength+(nflat-1)/2+2
+*GET,CoupleNodeNum(1,2),NODE,,NUM,MIN
+NSEL,S,NODE,,10000*(nwidth+1)/2+1+nlength+(nflat+1)/2+2
+*GET,CoupleNodeNum(1,3),NODE,,NUM,MIN
+NSEL,S,NODE,,10000*(nwidth-1)/2+1+nlength+(nflat+1)/2+2
+*GET,CoupleNodeNum(1,4),NODE,,NUM,MIN
+*Do,i,1,4
+	*get,locx2,node,CoupleNodeNum(1,i),loc,x
+	*get,locy2,node,CoupleNodeNum(1,i),loc,y
+	NSEL,S,LOC,X,LOCX2
+	NSEL,R,LOC,Y,LOCY2
+	CMsel,r,coupleface1,node
+	*GET,CoupleNodeNum(1+nBeam,i),NODE,,NUM,MIN
+*enddo
+*get,locz1,node,CoupleNodeNum(1+nBeam,1),loc,z
+*get,locz2,node,CoupleNodeNum(1,1),loc,z
+Zdistance=locz2-locz1
+dZ1=Zdistance/nBeam
+!梁单元的节点生成
+*Do,i,1,4
+	*get,locx2,node,CoupleNodeNum(1,i),loc,x
+	*get,locy2,node,CoupleNodeNum(1,i),loc,y
+	*Do,j,1,nBeam-1
+		n,100000*j+i,locx2,locy2,locz2-j*dZ1
+		CoupleNodeNum(j+1,i)=100000*j+i
+		allsel,all
+	*enddo
+*enddo
+!梁单元的生成
+*DO,i,1,nBeam
+	E,CoupleNodeNum(i,1),CoupleNodeNum(i,2),CoupleNodeNum(i,3),CoupleNodeNum(i,4),CoupleNodeNum(i+1,1),CoupleNodeNum(i+1,2),CoupleNodeNum(i+1,3),CoupleNodeNum(i+1,4)
+*enddo
+allsel,all
+
+!————————————————选择接触节点————————————————————————
+!阻尼片上的节点
+NSEL,S,LOC,Y,OriginalLocation+flatlength+L1+L2
+NSEL,a,LOC,Y,OriginalLocation
+NSEL,r,LOC,Z,2*A1-A2-A2
+cmsel,r,PatchNode,Node
+cm,NonlinearNode2,Node
+ALLSEL,ALL
+!主结构上的节点
+NSEL,S,LOC,Y,OriginalLocation+flatlength+L1+L2
+NSEL,a,LOC,Y,OriginalLocation
+NSEL,r,LOC,X,0,width
+NSEL,r,LOC,Z,gap
+cmsel,R,HostNode,Node
+CM,NonlinearNode1,Node
+ALLSEL,ALL
+!————————————————压电材料的电压耦合——————————————————
+!阻尼片1
+CMSEL,S,PiezoNode1Up,Node
+CP,1,Volt,all
+*get,node1,node,,num,min 
+NSEL,S,,,NODE1
+cm,VoltNode1,NODE
+CMSEL,S,PiezoNode1Below,Node
+d,all,volt,0
+!阻尼片2
+CMSEL,S,PiezoNode2Up,Node
+CP,2,Volt,all
+*get,node2,node,,num,min 
+NSEL,S,,,NODE2
+cm,VoltNode2,NODE
+CMSEL,S,PiezoNode2Below,Node
+d,all,volt,0
+ALLSEL,ALL
+
+!————————————————————添加边界条件———————————————————
+nsel,s,loc,y,0
+cm,boundary,Node
+d,all,all,0
+allsel,all
+*IF,Stick,EQ,0,THEN
+	CMSEL,u,NonlinearNode1,Node
+	CMSEL,u,NonlinearNode2,Node
+*ELSE
+*ENDIF
+NUMMRG,ALL
+allsel,all
+NUMCMP,NODE
+ALLSEL,ALL
+Nsel,s,loc,Y,LBase
+Nsel,R,loc,Z,gap
+Nsel,r,loc,X,width/2+0.003,width/2-0.003
+cm,ForceNode,Node
+ALLSEL,ALL
+Nsel,s,loc,Y,LBase-0.003*2
+Nsel,R,loc,Z,gap
+Nsel,r,loc,X,width/2,width/2+0.003
+cm,ObserveNode,Node
+allsel,all
+cmsel,s,ForceNode,Node
+cmsel,a,ObserveNode,Node
+cm,selectnode,node
+!——————————————————————END——————————————————————————
+
+!—————————6. 导出结构矩阵，并保存节点的信息———————————
+/SOLU
+ANTYPE,MODAL
+modopt,lanb,50
+mxpand,100,,,YES
+allsel,all
+SOLVE
+finish
+!将对应的矩阵提取到文件中
+/AUX2
+FILE,file,FULL
+HBMAT,KSub1,txt,ASCII,,STIFF,YES,YES
+HBMAT,MSub1,txt,ASCII,,MASS,YES
+FINISH
+allsel,all
+
+!节点信息保存
+ALLSEL,ALL
+CMSEL,U,NonlinearNode1,Node
+CMSEL,U,NonlinearNode2,Node
+CMSEL,U,Boundary,Node
+CMSEL,U,SelectNode,Node
+CMSEL,U,VoltNode1,Node
+CMSEL,U,VoltNode2,Node
+CM,ReductionNode,Node
+
+ALLSEL,ALL
+CMSEL,S,NonlinearNode1,Node
+CMSEL,A,NonlinearNode2,Node
+CMSEL,A,SelectNode,Node
+CMSEL,A,VoltNode1,Node
+CMSEL,A,VoltNode2,Node
+CM,RetainNode,Node
+
+Allsel,all
+CMSEL,S,ReductionNode,NODE
+*GET,ReductionNode_1,NODE,,COUNT
+*dim,ReductionNode_num1,array,ReductionNode_1,1 ! 存放节点编号     
+*GET,ReductionNode_num1(1),NODE,,NUM,MIN
+*DO,I,2,ReductionNode_1
+	ReductionNode_num1(I)=NDNEXT(ReductionNode_num1(I-1))
+*ENDDO
+
+*create,zzk,mac
+*cfopen,ReductionNode,txt !打开文件，写入数据
+*vwrite,ReductionNode_num1(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+
+CMSEL,S,RetainNode,NODE
+*GET,RetainNode_1,NODE,,COUNT
+*dim,RetainNode_num1,array,RetainNode_1,1 ! 存放节点编号     
+*GET,RetainNode_num1(1),NODE,,NUM,MIN
+*DO,I,2,RetainNode_1
+	RetainNode_num1(I)=NDNEXT(RetainNode_num1(I-1))
+*ENDDO
+*create,zzk,mac
+*cfopen,RetainNode,txt !打开文件，写入数据
+*vwrite,RetainNode_num1(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!激励节点
+CMSEL,S,ForceNode,NODE
+*GET,ForceNode_1,NODE,,COUNT
+*dim,ForceNode_num1,array,ForceNode_1,1 ! 存放节点编号     
+*GET,ForceNode_num1(1),NODE,,NUM,MIN
+*IF,ForceNode_1,NE,1,Then
+	*DO,I,2,ForceNode_1
+		ForceNode_num1(I)=NDNEXT(ForceNode_num1(I-1))
+	*ENDDO
+*else
+*ENDIF
+*create,zzk,mac
+*cfopen,ForceNode,txt !打开文件，写入数据
+*vwrite,ForceNode_num1(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!观察节点
+CMSEL,S,ObserveNode,NODE
+*GET,ObserveNode_1,NODE,,COUNT
+*dim,ObserveNode_num1,array,ObserveNode_1,1 ! 存放节点编号     
+*GET,ObserveNode_num1(1),NODE,,NUM,MIN
+*IF,ObserveNode_1,NE,1,Then
+	*DO,I,2,ObserveNode_1
+		ObserveNode_num1(I)=NDNEXT(ObserveNode_num1(I-1))
+	*ENDDO
+*else
+*ENDIF
+*create,zzk,mac
+*cfopen,ObserveNode,txt !打开文件，写入数据
+*vwrite,ObserveNode_num1(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!压电节点1
+CMSEL,S,VOLTNODE1,NODE
+*GET,VOLTNODE_1,NODE,,COUNT
+*dim,VOLTNODE_num1,array,VOLTNODE_1,1 ! 存放节点编号     
+*GET,VOLTNODE_num1(1),NODE,,NUM,MIN
+*IF,VOLTNODE_1,GT,1,Then
+	*DO,I,2,VOLTNODE_1
+		VOLTNODE_num1(I)=NDNEXT(VOLTNODE_num1(I-1))
+	*ENDDO
+*endif
+*create,zzk,mac
+*cfopen,VoltNode1,txt !打开文件，写入数据
+*vwrite,VOLTNODE_num1(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!压电节点2
+CMSEL,S,VOLTNODE2,NODE
+*GET,VOLTNODE_2,NODE,,COUNT
+*dim,VOLTNODE_num2,array,VOLTNODE_2,1 ! 存放节点编号     
+*GET,VOLTNODE_num2(1),NODE,,NUM,MIN
+*IF,VOLTNODE_2,GT,1,Then
+	*DO,I,2,VOLTNODE_2
+		VOLTNODE_num2(I)=NDNEXT(VOLTNODE_num2(I-1))
+	*ENDDO
+*endif
+*create,zzk,mac
+*cfopen,VoltNode2,txt !打开文件，写入数据
+*vwrite,VOLTNODE_num2(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!非线性节点名输出
+!主结构的节点名
+CMSEL,S,NonlinearNode1,NODE
+*GET,Ncount,NODE,,COUNT
+*dim,NodeNum,array,Ncount,1 ! 存放节点编号     
+*GET,NodeNum(1),NODE,,NUM,MIN
+*DO,I,2,Ncount
+	NodeNum(I)=NDNEXT(NodeNum(I-1))
+*ENDDO
+*create,zzk,mac
+*cfopen,NonlinearNode1,txt !打开文件，写入数据
+*vwrite,NodeNum(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+!接触对之间的对应关系
+allsel,all 
+*dim,NodeNum2,array,Ncount,2
+*DO,I,1,Ncount
+	node_num_match=NodeNum(i)
+	*get,locx,node,node_num_match,loc,x
+	*get,locy,node,node_num_match,loc,y
+	*get,locz,node,node_num_match,loc,z
+	allsel,all
+	CMSEL,S,NonlinearNode2,NODE
+	nsel,R,loc,x,locx-0.00001,locx+0.00001
+	nsel,R,loc,y,locy-0.00001,locy+0.00001
+	!nsel,R,loc,z,locz-0.00001,locz+0.00001
+	*get,NodeNum2(i),NODE,,NUM,MIN
+*ENDDO
+*create,zzk,mac
+*cfopen,NonlinearNode2,txt !打开文件，写入数据
+*vwrite,NodeNum2(1)
+(f6.0)
+*cfclos
+*end
+/input,zzk,mac
+allsel,all
+!——————————————————————END——————————————————————————
+!/RGB,INDEX,100,100,100,0   
+!/RGB,INDEX, 80,80,80,13   
+!/RGB,INDEX, 60,60,60,14   
+!/RGB,INDEX, 0,0,0,15
+!/UDOC,1,DATE,0
+!/UDOC,1,TYPE,0  
+!/UDOC,1,INUM,0  
+!
+!allsel,all
+!*SET,step1,300
+!*SET,CLC1,1
+!*dim,UXreal,array,step1
+!*dim,UXimag,array,step1
+!*dim,amplitude,array,step1,CLC1
+!*dim,phase,array,step1,CLC1
+
+!!谐响应分析
+!/solu
+!ANTYPE,3
+!HROPT,FULL
+!HROUT,OFF                 ! 输出结果为幅值和相角
+!OUTPR,BASIC,1 
+!!激振力点设置
+!NSEL,ALL
+!nsel,s,,,91
+!d,all,volt,5
+!ALLSEL
+!nsel,s,,,85
+!d,all,volt,5
+!ALLSEL
+!alphad,3.1722
+!betad,7.7637e-6
+!HARFRQ,9.9,29.9
+!NSUBST,step1,
+!KBC,1
+!SOLVE
+!
+!!谐响应数据提取点的加入
+!/POST26                   ! 后处理，提取位移输出量
+!NSOL,3,786,U,Z,UZ
+!VGET,UXreal(1),3,,0
+!VGET,UXimag(1),3,,1
+!*DO,j,1,step1
+!amplitude(j,1)=((UXreal(j))**2+(UXimag(j))**2)**(1/2)
+!pi=acos(-1)
+!phase(j,1)=180/pi*atan(UXimag(j)/UXreal(j))
+! *IF,phase(j,1),GT,0,then
+! phase(j,1)=phase(j,1)-180
+! *endif
+!*ENDDO
+!!
+!*mwrite,amplitude,amplitude,txt,,JIK,CLC1,step1
+!(F12.6)
+!*CFCLOS
+!!
+!*mwrite,phase,phase,txt,,JIK,CLC1,step1
+!(F12.6)
+!*CFCLOS        
